@@ -4,7 +4,7 @@
 
 A machine-learning pipeline that flags potentially fraudulent credit-card transactions, plus a live dashboard that compares the models and scores transactions in the browser.
 
-**Live demo:** _GitHub Pages URL — see the repository's "About" section after the first deploy_
+**Live demo:** _add your Vercel or Netlify URL here_
 
 ## What it does
 
@@ -55,3 +55,11 @@ web/index.html       static site deployed to GitHub Pages
 ```
 
 The dashboard's transaction scorer runs the class-weighted logistic regression entirely in JavaScript using the exported scaler and coefficients — no backend needed.
+
+## Deploy
+
+The dashboard is a static site in `web/` with no build step.
+
+- **Vercel:** import the repo; `vercel.json` sets the output directory to `web`. Click Deploy.
+- **Netlify:** import the repo; `netlify.toml` publishes `web`. Click Deploy.
+- **GitHub Pages:** Settings → Pages → Source: GitHub Actions (workflow included).

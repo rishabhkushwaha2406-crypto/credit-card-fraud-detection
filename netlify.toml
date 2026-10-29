@@ -1,0 +1,12 @@
+# Static site. base = "web" keeps Netlify from auto-installing requirements.txt
+# (the Python pipeline runs offline; the site only needs the built HTML).
+[build]
+  base = "web"
+  publish = "."
+  command = "echo 'Static site, no build needed'"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
