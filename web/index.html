@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Card Fraud Detector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Credit card fraud detection: Logistic Regression, Random Forest and XGBoost compared across SMOTE, class weights and undersampling.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a risk-analyst console — summary strip, comparison ledger, curve + matrix pair, live scorer */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --ink: #121a2b; --muted: #5a6478; --line: #dbe0e8;
+  --accent: #1d5fd1; --accent-soft: #e3ecfb; --fraud: #c62f3b; --fraud-soft: #fbe6e8; --ok: #1f7a4d; --ok-soft: #e1f2e9;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1220; --surface: #151c2e; --ink: #e6eaf2; --muted: #95a0b6; --line: #27304a;
+  --accent: #6f9ef5; --accent-soft: #1b2847; --fraud: #f06b74; --fraud-soft: #3a1c24; --ok: #5cc48f; --ok-soft: #15301f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1220; --surface: #151c2e; --ink: #e6eaf2; --muted: #95a0b6; --line: #27304a;
+  --accent: #6f9ef5; --accent-soft: #1b2847; --fraud: #f06b74; --fraud-soft: #3a1c24; --ok: #5cc48f; --ok-soft: #15301f; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); font-stretch: 82%; letter-spacing: -0.01em; text-wrap: balance; margin: 0 }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; line-height: 1.05 }
+h2 { font-size: 1.35rem; font-weight: 700 }
+p { margin: 0 }
+.eyebrow { font: 500 0.72rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted) }
+.lede { color: var(--muted); max-width: 64ch; margin-top: 12px }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px }
+.tag { font: 500 0.75rem var(--mono); padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface) }
+.tag.warn { border-color: var(--fraud); color: var(--fraud) }
+.num { font-variant-numeric: tabular-nums; font-family: var(--mono) }
+section { display: grid; gap: 16px; min-width: 0 }
+.sec-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap }
+.sec-head p { color: var(--muted); font-size: 0.9rem; max-width: 60ch }
+
+.strip { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+.strip > div { padding: 16px 18px; border-left: 1px solid var(--line); display: grid; gap: 2px; min-width: 0 }
+.strip > div:first-child { border-left: 0 }
+.strip .v { font: 600 1.5rem var(--mono); font-variant-numeric: tabular-nums }
+.strip .v.fraud { color: var(--fraud) }
+@media (max-width: 720px) { .strip { grid-template-columns: 1fr 1fr } .strip > div:nth-child(3) { border-left: 0 } .strip > div:nth-child(n+3) { border-top: 1px solid var(--line) } }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 0.9rem }
+th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left }
+th { font: 500 0.72rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none }
+th[aria-sort] { color: var(--accent) }
+tbody tr { cursor: pointer }
+tbody tr:hover { background: var(--accent-soft) }
+tbody tr.sel { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft) }
+tr:last-child td { border-bottom: 0 }
+td.model { font-weight: 600 }
+.best { font: 600 0.65rem var(--mono); color: var(--ok); background: var(--ok-soft); padding: 2px 6px; border-radius: 3px; margin-left: 8px; letter-spacing: 0.05em }
+.bar { position: relative; display: inline-block; width: 64px; height: 6px; background: var(--line); border-radius: 3px; margin-left: 8px; vertical-align: middle }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px }
+
+.pair { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px }
+@media (max-width: 860px) { .pair { grid-template-columns: 1fr } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 14px; align-content: start; min-width: 0 }
+.panel h3 { margin: 0; font: 600 0.95rem var(--body) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden }
+.seg button { font: 500 0.78rem var(--mono); padding: 6px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+button:focus-visible, select:focus-visible, input:focus-visible, th:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+svg text { fill: var(--muted); font: 11px var(--mono) }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; color: var(--muted) }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c) }
+
+.cm { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; font-size: 0.82rem }
+.cm .h { font: 500 0.7rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; align-self: center }
+.cm .cell { padding: 14px 10px; border-radius: 4px; display: grid; gap: 2px; text-align: center }
+.cm .cell b { font: 600 1.3rem var(--mono); font-variant-numeric: tabular-nums }
+.cell.tp { background: var(--ok-soft); color: var(--ok) } .cell.tn { background: var(--accent-soft); color: var(--accent) }
+.cell.fp, .cell.fn { background: var(--fraud-soft); color: var(--fraud) }
+.note { font-size: 0.82rem; color: var(--muted) }
+
+.fi { display: grid; gap: 8px }
+.fi-row { display: grid; grid-template-columns: 80px 1fr 56px; gap: 10px; align-items: center; font-size: 0.85rem }
+.fi-row .track { height: 10px; background: var(--line); border-radius: 2px; overflow: hidden }
+.fi-row .track i { display: block; height: 100%; background: var(--accent) }
+
+.scorer { display: grid; grid-template-columns: 1fr 300px; gap: 20px }
+@media (max-width: 860px) { .scorer { grid-template-columns: 1fr } }
+.sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px }
+@media (max-width: 560px) { .sliders { grid-template-columns: 1fr } }
+.sl { display: grid; gap: 4px }
+.sl label { display: flex; justify-content: space-between; font-size: 0.85rem }
+.sl input { width: 100%; accent-color: var(--accent) }
+.samples { display: flex; flex-wrap: wrap; gap: 8px }
+.chip { font: 500 0.78rem var(--mono); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer }
+.chip.f { border-color: var(--fraud); color: var(--fraud) }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+.verdict { display: grid; gap: 10px; align-content: start; padding: 20px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface) }
+.verdict .p { font: 600 3rem/1 var(--mono); font-variant-numeric: tabular-nums }
+.verdict.hi .p { color: var(--fraud) } .verdict.lo .p { color: var(--ok) }
+.pill { justify-self: start; font: 600 0.75rem var(--mono); padding: 4px 10px; border-radius: 99px; letter-spacing: 0.05em }
+.hi .pill { background: var(--fraud-soft); color: var(--fraud) } .lo .pill { background: var(--ok-soft); color: var(--ok) }
+.meter { height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--ok), var(--line) 50%, var(--fraud)); position: relative }
+.meter i { position: absolute; top: -4px; width: 3px; height: 16px; background: var(--ink); transform: translateX(-1px); transition: left .25s }
+@media (prefers-reduced-motion: reduce) { .meter i { transition: none } }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 20px; display: grid; gap: 6px }
+footer a { color: var(--accent) }
+code { font-family: var(--mono); font-size: 0.88em }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Machine learning · Imbalanced classification</p>
+    <h1>Credit Card Fraud Detection</h1>
+    <p class="lede">Nine models trained to flag fraudulent card transactions: Logistic Regression, Random Forest and XGBoost, each paired with class weights, SMOTE oversampling or random undersampling. Ranked on precision, recall, F1 and ROC-AUC, because accuracy is meaningless when fewer than 0.2% of transactions are fraud.</p>
+    <div class="tags"><span class="tag">Python</span><span class="tag">Pandas</span><span class="tag">Scikit-learn</span><span class="tag">imbalanced-learn</span><span class="tag">XGBoost</span><span class="tag warn" id="srcTag"></span></div>
+  </header>
+
+  <section aria-label="Dataset summary"><div class="strip" id="strip"></div></section>
+
+  <section>
+    <div class="sec-head"><div><p class="eyebrow">Hold-out test set · threshold 0.5</p><h2>Model comparison</h2></div>
+      <p>Click a column to sort, or a row to inspect its curves and confusion matrix below.</p></div>
+    <div class="tablewrap"><table id="tbl"><thead><tr>
+      <th data-k="model" tabindex="0">Model</th><th data-k="strategy" tabindex="0">Imbalance strategy</th>
+      <th data-k="precision" tabindex="0">Precision</th><th data-k="recall" tabindex="0">Recall</th>
+      <th data-k="f1" tabindex="0">F1</th><th data-k="roc_auc" tabindex="0">ROC-AUC</th><th data-k="pr_auc" tabindex="0">PR-AUC</th>
+      <th data-k="fn" tabindex="0">Missed fraud</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="pair">
+    <div class="panel">
+      <div class="sec-head"><h3 id="curveTitle">Curves</h3>
+        <div class="seg" role="group" aria-label="Curve type"><button id="bRoc" aria-pressed="true">ROC</button><button id="bPr" aria-pressed="false">Precision–Recall</button></div></div>
+      <div id="curve"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="panel">
+      <h3 id="cmTitle">Confusion matrix</h3>
+      <div class="cm" id="cm"></div>
+      <p class="note" id="cmNote"></p>
+    </div>
+  </section>
+
+  <section class="pair">
+    <div class="panel">
+      <h3>Top features (XGBoost, class weights)</h3>
+      <div class="fi" id="fi"></div>
+      <p class="note">V1–V28 are PCA components (the original card features are anonymised), so importance points to latent patterns rather than named fields.</p>
+    </div>
+    <div class="panel">
+      <h3>What the comparison shows</h3>
+      <div id="insights" class="note" style="display:grid;gap:10px;color:var(--ink);font-size:0.9rem"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div><p class="eyebrow">Runs in your browser</p><h2>Score a transaction</h2></div>
+      <p>Load a test-set transaction, then move the strongest features to see how the class-weighted logistic regression reacts. Features not shown keep the sample's values.</p></div>
+    <div class="scorer">
+      <div class="panel">
+        <div class="samples" id="samples" role="group" aria-label="Sample transactions"></div>
+        <div class="sliders" id="sliders"></div>
+      </div>
+      <div class="verdict" id="verdict" aria-live="polite">
+        <p class="eyebrow">Fraud probability</p>
+        <p class="p" id="prob">–</p>
+        <div class="meter"><i id="needle"></i></div>
+        <span class="pill" id="pill"></span>
+        <p class="note" id="actual"></p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Pipeline: clean → engineer <code>LogAmount</code> and <code>Hour</code> → stratified 75/25 split → scale → resample (training data only) → fit → evaluate. Source code and full results are in the GitHub repository.</p>
+    <p id="srcNote"></p>
+  </footer>
+</div>
+
+<script>
+const R = {"data_source": "synthetic", "rows": 100000, "fraud_count": 187, "fraud_rate": 0.00187, "test_size": 25000, "results": [{"model": "Logistic Regression", "strategy": "Class weights", "precision": 0.0911, "recall": 0.9149, "f1": 0.1657, "roc_auc": 0.9659, "pr_auc": 0.7914, "tp": 43, "fp": 429, "fn": 4, "tn": 24524, "train_seconds": 0.4}, {"model": "Logistic Regression", "strategy": "SMOTE", "precision": 0.115, "recall": 0.9149, "f1": 0.2043, "roc_auc": 0.9605, "pr_auc": 0.8576, "tp": 43, "fp": 331, "fn": 4, "tn": 24622, "train_seconds": 0.6}, {"model": "Logistic Regression", "strategy": "Undersampling", "precision": 0.8958, "recall": 0.9149, "f1": 0.9053, "roc_auc": 0.9657, "pr_auc": 0.7804, "tp": 43, "fp": 5, "fn": 4, "tn": 24948, "train_seconds": 0.1}, {"model": "Random Forest", "strategy": "Class weights", "precision": 1.0, "recall": 0.8298, "f1": 0.907, "roc_auc": 0.9634, "pr_auc": 0.9158, "tp": 39, "fp": 0, "fn": 8, "tn": 24953, "train_seconds": 19.9}, {"model": "Random Forest", "strategy": "SMOTE", "precision": 1.0, "recall": 0.8936, "f1": 0.9438, "roc_auc": 0.9692, "pr_auc": 0.9151, "tp": 42, "fp": 0, "fn": 5, "tn": 24953, "train_seconds": 68.6}, {"model": "Random Forest", "strategy": "Undersampling", "precision": 0.9318, "recall": 0.8723, "f1": 0.9011, "roc_auc": 0.9478, "pr_auc": 0.8946, "tp": 41, "fp": 3, "fn": 6, "tn": 24950, "train_seconds": 0.9}, {"model": "XGBoost", "strategy": "Class weights", "precision": 1.0, "recall": 0.9149, "f1": 0.9556, "roc_auc": 0.9705, "pr_auc": 0.9162, "tp": 43, "fp": 0, "fn": 4, "tn": 24953, "train_seconds": 1.8}, {"model": "XGBoost", "strategy": "SMOTE", "precision": 0.9545, "recall": 0.8936, "f1": 0.9231, "roc_auc": 0.9655, "pr_auc": 0.9147, "tp": 42, "fp": 2, "fn": 5, "tn": 24951, "train_seconds": 3.4}, {"model": "XGBoost", "strategy": "Undersampling", "precision": 1.0, "recall": 0.8936, "f1": 0.9438, "roc_auc": 0.9672, "pr_auc": 0.9081, "tp": 42, "fp": 0, "fn": 5, "tn": 24953, "train_seconds": 0.3}], "best": {"model": "XGBoost", "strategy": "Class weights", "precision": 1.0, "recall": 0.9149, "f1": 0.9556, "roc_auc": 0.9705, "pr_auc": 0.9162, "tp": 43, "fp": 0, "fn": 4, "tn": 24953, "train_seconds": 1.8}, "curves": {"Logistic Regression | Class weights": {"roc": {"x": [0.0, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1306, 0.1306, 0.1783, 0.1783, 0.4334, 0.4334, 0.856, 0.856, 1.0], "y": [0.0, 0.234, 0.2766, 0.3617, 0.4043, 0.9149, 0.9149, 0.9362, 0.9362, 0.9574, 0.9574, 0.9787, 0.9787, 1.0, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "y": [1.0, 0.0982, 0.0499, 0.0335, 0.0252, 0.0202, 0.0168, 0.0144, 0.0129, 0.0115, 0.0104, 0.0096, 0.0088, 0.0082, 0.0076, 0.0071, 0.0066, 0.0062, 0.0059, 0.0056, 0.0053, 0.0051, 0.0048, 0.0046, 0.0044, 0.0042, 0.0042, 0.004, 0.0039, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0021, 0.0021, 0.002, 0.002, 0.0019, 0.0019, 0.0019]}}, "Logistic Regression | SMOTE": {"roc": {"x": [0.0, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.239, 0.239, 0.2421, 0.2421, 0.5718, 0.5718, 0.8025, 0.8025, 1.0], "y": [0.0, 0.617, 0.6596, 0.7447, 0.8085, 0.8085, 0.9149, 0.9149, 0.9362, 0.9362, 0.9574, 0.9574, 0.9787, 0.9787, 1.0, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "y": [1.0, 0.0945, 0.049, 0.0331, 0.0249, 0.02, 0.0167, 0.0144, 0.0126, 0.0112, 0.0101, 0.0092, 0.0084, 0.0078, 0.0072, 0.0071, 0.0066, 0.0062, 0.0059, 0.0056, 0.0053, 0.005, 0.0048, 0.0046, 0.0044, 0.0042, 0.0041, 0.0039, 0.0038, 0.0037, 0.0035, 0.0034, 0.0033, 0.0032, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.0021, 0.002, 0.002, 0.0019, 0.0019, 0.0019]}}, "Logistic Regression | Undersampling": {"roc": {"x": [0.0, 0.0, 0.0001, 0.0001, 0.0001, 0.0001, 0.1257, 0.1257, 0.1319, 0.1319, 0.4706, 0.4706, 0.8786, 0.8786, 1.0], "y": [0.0, 0.0, 0.0, 0.4681, 0.4681, 0.9149, 0.9149, 0.9362, 0.9362, 0.9574, 0.9574, 0.9787, 0.9787, 1.0, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "y": [1.0, 0.1017, 0.0508, 0.0338, 0.0254, 0.0203, 0.0169, 0.0145, 0.0133, 0.0118, 0.0106, 0.0097, 0.0089, 0.0082, 0.0076, 0.0071, 0.0066, 0.0062, 0.0059, 0.0056, 0.0053, 0.0051, 0.0048, 0.0046, 0.0044, 0.0042, 0.0041, 0.0039, 0.0039, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.0021, 0.0021, 0.002, 0.002, 0.0019, 0.0019, 0.0019]}}, "Random Forest | Class weights": {"roc": {"x": [0.0, 0.0163, 0.0176, 0.0196, 0.0222, 0.0229, 0.0258, 0.0267, 0.0304, 0.0342, 0.035, 0.0359, 0.0367, 0.045, 0.0459, 0.0467, 0.0475, 0.0483, 0.0491, 0.0499, 0.0506, 0.0517, 0.0526, 0.0535, 0.0544, 0.055, 0.0558, 0.057, 0.0581, 0.0595, 0.0617, 0.0652, 0.0674, 0.0688, 0.0709, 0.0722, 0.0731, 0.0743, 0.0754, 0.077, 0.0783, 0.0796, 0.0808, 0.0825, 0.084, 0.0852, 0.086, 0.088, 0.0892, 0.0905, 0.0916, 0.0934, 0.0952, 0.0979, 0.1011, 0.1028, 0.1076, 0.1124, 0.1167, 1.0], "y": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 1.0]}, "pr": {"x": [0.0, 0.4468, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 1.0], "y": [1.0, 1.0, 1.0, 0.6615, 0.4943, 0.3945, 0.3308, 0.2829, 0.2471, 0.2194, 0.1972, 0.1792, 0.1648, 0.1519, 0.141, 0.1315, 0.1232, 0.1159, 0.1094, 0.1036, 0.0984, 0.0923, 0.0876, 0.0829, 0.0793, 0.0761, 0.0733, 0.07, 0.0675, 0.0651, 0.063, 0.0602, 0.0583, 0.0566, 0.055, 0.0533, 0.0519, 0.0506, 0.0493, 0.0477, 0.0463, 0.0449, 0.0371, 0.0357, 0.0346, 0.033, 0.0315, 0.0305, 0.0288, 0.0255, 0.0238, 0.023, 0.0219, 0.0209, 0.0201, 0.0194, 0.0188, 0.0178, 0.0161, 0.0019]}}, "Random Forest | SMOTE": {"roc": {"x": [0.0, 0.0, 0.0, 0.0, 0.0, 0.1195, 0.1195, 0.1715, 0.1715, 0.3389, 0.3389, 0.816, 0.816, 1.0], "y": [0.0, 0.0213, 0.8936, 0.8936, 0.9149, 0.9149, 0.9362, 0.9362, 0.9574, 0.9574, 0.9787, 0.9787, 1.0, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "y": [1.0, 0.1017, 0.0508, 0.0338, 0.0254, 0.0203, 0.0169, 0.0145, 0.013, 0.0115, 0.0104, 0.0097, 0.0089, 0.0082, 0.0076, 0.0071, 0.0066, 0.0062, 0.0059, 0.0056, 0.0053, 0.0052, 0.0049, 0.0047, 0.0045, 0.0043, 0.0042, 0.004, 0.0039, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.0021, 0.002, 0.002, 0.0019, 0.0019, 0.0019]}}, "Random Forest | Undersampling": {"roc": {"x": [0.0, 0.3308, 0.4886, 0.5281, 0.5748, 0.5853, 0.6151, 0.6293, 0.6465, 0.6544, 0.6577, 0.6826, 0.6966, 0.7026, 0.7091, 0.7134, 0.7175, 0.723, 0.7449, 0.7488, 0.7646, 0.7795, 0.7933, 0.8016, 0.8136, 0.8175, 0.8228, 0.8303, 0.8347, 0.8409, 0.8467, 0.852, 0.8562, 0.8608, 0.8664, 0.8707, 0.8755, 0.8789, 0.8825, 0.8865, 0.8909, 0.8951, 0.8991, 0.9028, 0.9057, 0.9086, 0.9126, 0.9168, 0.9213, 0.9281, 0.9329, 0.9367, 0.9413, 0.9452, 0.9506, 0.9569, 0.9649, 0.972, 0.9814, 1.0], "y": [0.0, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0, 1.0]}, "pr": {"x": [0.0, 0.8936, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0], "y": [1.0, 0.1111, 0.0573, 0.0383, 0.0288, 0.023, 0.0196, 0.0168, 0.0147, 0.0131, 0.0118, 0.0107, 0.0098, 0.0091, 0.0084, 0.0079, 0.0074, 0.0069, 0.0066, 0.0062, 0.0059, 0.0056, 0.0054, 0.0051, 0.0049, 0.0047, 0.0045, 0.0044, 0.0042, 0.0041, 0.0039, 0.0038, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0029, 0.0028, 0.0027, 0.0027, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.002, 0.0019]}}, "XGBoost | Class weights": {"roc": {"x": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0095, 0.1036, 0.1404, 0.1454, 0.1894, 0.2358, 0.2604, 0.2807, 0.2905, 0.307, 0.3163, 0.3184, 0.3194, 0.3814, 0.3815, 0.3921, 0.4214, 0.4348, 0.4416, 0.4579, 0.4586, 0.4913, 0.507, 0.5226, 0.5229, 0.5612, 0.5667, 0.5883, 0.5992, 0.6048, 0.6519, 0.682, 0.6916, 0.7006, 0.7033, 0.7204, 0.7327, 0.7465, 0.7508, 0.7563, 0.7797, 0.8052, 0.8079, 0.8254, 0.8393, 0.8429, 0.8619, 0.8649, 0.8663, 0.8964, 0.9086, 0.9151, 0.9238, 0.9357, 1.0], "y": [0.0, 0.0638, 0.234, 0.4255, 0.5319, 0.9149, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0, 1.0], "y": [1.0, 0.0995, 0.0504, 0.0337, 0.0259, 0.0207, 0.0173, 0.0152, 0.0133, 0.0118, 0.0106, 0.0097, 0.0089, 0.0082, 0.0076, 0.0071, 0.0066, 0.0063, 0.0059, 0.0057, 0.0054, 0.0052, 0.0049, 0.0047, 0.0045, 0.0043, 0.0042, 0.004, 0.0039, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.002, 0.002, 0.002, 0.002, 0.0019, 0.0019, 0.0019]}}, "XGBoost | SMOTE": {"roc": {"x": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0001, 0.0569, 0.057, 0.1015, 0.1023, 0.1035, 0.1036, 0.1126, 0.1173, 0.1724, 0.1724, 0.2059, 0.2227, 0.2548, 0.2549, 0.2801, 0.2821, 0.2972, 0.2973, 0.301, 0.3415, 0.3455, 0.3456, 0.3552, 0.379, 0.3953, 0.3953, 0.4274, 0.4394, 0.4844, 0.4845, 0.5039, 0.5356, 0.7206, 0.7207, 0.7433, 0.7446, 0.7606, 0.7607, 0.7636, 0.8077, 0.8511, 0.8512, 0.8528, 0.8854, 0.9536, 0.9536, 0.9782, 0.9842, 1.0], "y": [0.0, 0.0213, 0.0638, 0.1489, 0.1915, 0.2766, 0.3404, 0.4255, 0.4894, 0.8936, 0.8936, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9149, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0], "y": [1.0, 0.0998, 0.0504, 0.0337, 0.0253, 0.0202, 0.0169, 0.0151, 0.0133, 0.0118, 0.0106, 0.0096, 0.0088, 0.0082, 0.0076, 0.0071, 0.0066, 0.0062, 0.0059, 0.0056, 0.0053, 0.0051, 0.0048, 0.0046, 0.0044, 0.0042, 0.0042, 0.004, 0.0039, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.002, 0.002, 0.002, 0.0019, 0.0019, 0.0019, 0.0019]}}, "XGBoost | Undersampling": {"roc": {"x": [0.0, 0.0, 0.001, 0.001, 0.0438, 0.0728, 0.1787, 0.1909, 0.191, 0.2764, 0.2858, 0.3287, 0.337, 0.337, 0.3465, 0.3733, 0.4106, 0.4467, 0.4468, 0.4934, 0.4969, 0.4969, 0.5385, 0.5488, 0.5489, 0.5563, 0.5667, 0.572, 0.575, 0.575, 0.5785, 0.5884, 0.621, 0.6285, 0.6286, 0.6483, 0.6546, 0.6572, 0.6638, 0.6639, 0.6713, 0.6869, 0.6902, 0.7106, 0.7107, 0.7481, 0.7777, 0.812, 0.8167, 0.8168, 0.8198, 0.8304, 0.8519, 0.8522, 0.8523, 0.888, 0.9199, 0.9282, 0.9538, 1.0], "y": [0.0, 0.0213, 0.8936, 0.9149, 0.9149, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0]}, "pr": {"x": [0.0, 0.9149, 0.9149, 0.9149, 0.9149, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9362, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9574, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 0.9787, 1.0, 1.0, 1.0], "y": [1.0, 0.1017, 0.0508, 0.0339, 0.0254, 0.0208, 0.0173, 0.0149, 0.013, 0.0116, 0.0104, 0.0097, 0.0089, 0.0082, 0.0076, 0.0071, 0.0066, 0.0063, 0.0059, 0.0056, 0.0054, 0.0052, 0.0049, 0.0047, 0.0045, 0.0043, 0.0042, 0.004, 0.0039, 0.0037, 0.0036, 0.0035, 0.0034, 0.0033, 0.0032, 0.0031, 0.003, 0.0029, 0.0029, 0.0028, 0.0027, 0.0026, 0.0026, 0.0025, 0.0025, 0.0024, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0021, 0.0021, 0.002, 0.002, 0.002, 0.0019, 0.0019, 0.0019, 0.0019]}}}, "feature_importance": [{"feature": "V17", "importance": 0.4159}, {"feature": "V1", "importance": 0.0678}, {"feature": "Amount", "importance": 0.0425}, {"feature": "V7", "importance": 0.0415}, {"feature": "V23", "importance": 0.0353}, {"feature": "V13", "importance": 0.032}, {"feature": "V14", "importance": 0.0304}, {"feature": "V3", "importance": 0.0298}, {"feature": "LogAmount", "importance": 0.0242}, {"feature": "V20", "importance": 0.0231}, {"feature": "V21", "importance": 0.0231}, {"feature": "V4", "importance": 0.0205}]}, M = {"features": ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15", "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount", "LogAmount", "Hour"], "mean": [86607.937293, -1.982949, 0.003635, -1.983156, -2.003132, 0.001265, 2.000514, 7.870441, -1.997396, 8.4e-05, -0.001044, -0.276053, -0.001745, -2.150209, 1.995852, -0.000347, 0.002128, -7.390128, 2.003804, 0.002417, -1.998216, 3.009831, 0.002203, -2.001372, 0.970401, -0.002054, -0.001224, 1.984116, -0.000558, 52.43932, 3.19515, 11.48232], "scale": [49742.331098, 1.752536, 1.00201, 1.975984, 1.645067, 0.998521, 1.60547, 2.97529, 1.888958, 1.005077, 1.002778, 3.091975, 1.00012, 2.488803, 1.644764, 0.997516, 1.002015, 3.79807, 2.379863, 0.998465, 1.46776, 3.224493, 0.997177, 2.008336, 2.779919, 0.998218, 0.998488, 2.102301, 0.994188, 118.271659, 1.205267, 6.924298], "coef": [0.457941, -1.486435, -0.154132, 2.932961, 4.434023, 0.181, 2.180175, -1.235863, 1.709298, -0.051117, -0.151539, 1.598526, -0.044151, 3.258433, 0.144201, 0.216326, -0.146176, -0.286765, -0.238928, -0.119189, 2.976073, -3.017432, 0.42823, 1.211536, 2.36348, 0.335756, 0.42266, -1.989151, 0.63612, 0.59213, -0.256159, -0.106152], "intercept": -3.737227, "samples": {"fraud": [{"Time": 162950.0, "V1": 2.4396, "V2": -0.9907, "V3": 4.2858, "V4": -3.5311, "V5": -1.4805, "V6": 1.8279, "V7": -2.9584, "V8": 0.9358, "V9": -0.5535, "V10": 0.5776, "V11": 3.3176, "V12": 0.0108, "V13": 3.7811, "V14": -4.8592, "V15": -2.175, "V16": -0.7158, "V17": 12.345, "V18": 0.1114, "V19": 0.3887, "V20": 1.6408, "V21": 0.1235, "V22": -1.1339, "V23": 2.532, "V24": 2.2118, "V25": -0.292, "V26": -0.0521, "V27": -5.2892, "V28": -0.5406, "Amount": 390.28, "LogAmount": 5.9694, "Hour": 21.0}, {"Time": 120003.0, "V1": 0.3583, "V2": -0.1197, "V3": 2.3702, "V4": -5.6015, "V5": 0.8437, "V6": 0.4161, "V7": 5.4822, "V8": -1.8877, "V9": 0.252, "V10": -1.118, "V11": 3.3062, "V12": -0.5927, "V13": 1.5682, "V14": -3.2454, "V15": 1.1746, "V16": -1.7542, "V17": 4.8095, "V18": 0.1253, "V19": 1.3885, "V20": 5.5036, "V21": -4.7299, "V22": 0.8339, "V23": 5.6335, "V24": 4.9373, "V25": 0.2341, "V26": 0.0112, "V27": -1.4085, "V28": -1.3411, "Amount": 692.24, "LogAmount": 6.5414, "Hour": 9.0}, {"Time": 95966.0, "V1": 4.3054, "V2": -1.0118, "V3": 1.8964, "V4": -0.9986, "V5": -0.0389, "V6": 1.6188, "V7": -2.1353, "V8": -5.1313, "V9": 1.921, "V10": 0.3056, "V11": 0.449, "V12": -0.8698, "V13": 8.576, "V14": -1.8004, "V15": 0.6299, "V16": 0.7154, "V17": 9.2527, "V18": -0.728, "V19": 0.3564, "V20": 2.8397, "V21": -3.7791, "V22": 3.9899, "V23": 4.0699, "V24": 5.4583, "V25": -0.3282, "V26": 1.3052, "V27": -4.2128, "V28": -0.0391, "Amount": 3.73, "LogAmount": 1.5539, "Hour": 2.0}, {"Time": 129339.0, "V1": 0.0678, "V2": -0.0774, "V3": 1.7092, "V4": 1.8778, "V5": 0.9757, "V6": 4.8594, "V7": -0.3237, "V8": 1.3372, "V9": 0.2711, "V10": 0.394, "V11": 4.0125, "V12": 0.0053, "V13": -0.6699, "V14": -2.6245, "V15": -0.8324, "V16": 2.0941, "V17": -1.2467, "V18": 2.3694, "V19": -0.5515, "V20": -1.597, "V21": 0.9426, "V22": -1.0649, "V23": 0.4694, "V24": -2.2539, "V25": -0.3902, "V26": 0.2244, "V27": 0.9616, "V28": -1.8965, "Amount": 2.32, "LogAmount": 1.2, "Hour": 11.0}, {"Time": 165975.0, "V1": 4.6132, "V2": -0.5851, "V3": 0.3306, "V4": -0.4463, "V5": 0.7794, "V6": 0.5302, "V7": 1.2497, "V8": -5.4791, "V9": 0.3387, "V10": 0.3993, "V11": 1.3568, "V12": 0.2934, "V13": 8.0343, "V14": -1.4056, "V15": -0.2323, "V16": -1.1444, "V17": 4.2803, "V18": 6.2473, "V19": -1.0934, "V20": 4.69, "V21": 1.2985, "V22": 1.2496, "V23": -3.2503, "V24": 15.2093, "V25": -0.5351, "V26": 2.3051, "V27": -5.0906, "V28": -0.7637, "Amount": 1.71, "LogAmount": 0.9969, "Hour": 22.0}], "legit": [{"Time": 22544.0, "V1": -1.4334, "V2": 1.0328, "V3": 0.8521, "V4": -6.2429, "V5": 1.6897, "V6": 3.3422, "V7": 15.438, "V8": -3.364, "V9": -0.4399, "V10": 2.2978, "V11": 1.7076, "V12": 0.4836, "V13": -1.6354, "V14": -0.6874, "V15": 1.2678, "V16": 0.7132, "V17": -7.9296, "V18": 6.9352, "V19": -0.241, "V20": 1.4307, "V21": 7.8462, "V22": -0.1293, "V23": -3.4347, "V24": 8.1334, "V25": -0.2384, "V26": 1.3841, "V27": 2.6643, "V28": -0.2307, "Amount": 89.79, "LogAmount": 4.5085, "Hour": 6.0}, {"Time": 83901.0, "V1": -1.1107, "V2": -0.7721, "V3": -2.0764, "V4": -1.2981, "V5": -1.9747, "V6": 2.9832, "V7": 5.5352, "V8": -5.6066, "V9": 0.94, "V10": -1.4751, "V11": 2.5588, "V12": 0.3163, "V13": -1.0123, "V14": -1.3954, "V15": -1.4915, "V16": 0.0336, "V17": -2.8531, "V18": 0.6854, "V19": 0.8978, "V20": -3.1063, "V21": 3.0555, "V22": 0.9116, "V23": -1.5887, "V24": -1.8167, "V25": -0.3719, "V26": 0.3449, "V27": 0.9143, "V28": -0.9701, "Amount": 25.07, "LogAmount": 3.2608, "Hour": 23.0}, {"Time": 80027.0, "V1": -1.9076, "V2": -0.7459, "V3": -5.1893, "V4": 0.1072, "V5": -1.6784, "V6": 3.1875, "V7": 5.4433, "V8": -2.06, "V9": -0.5955, "V10": -0.2375, "V11": 2.0513, "V12": 1.2988, "V13": -3.0588, "V14": 2.0949, "V15": 0.1885, "V16": 0.6645, "V17": -8.1226, "V18": 3.2715, "V19": 1.5768, "V20": -4.2293, "V21": 1.6097, "V22": 0.0448, "V23": -3.8917, "V24": 0.8432, "V25": 0.1909, "V26": -0.6025, "V27": -0.2511, "V28": 0.0566, "Amount": 4.19, "LogAmount": 1.6467, "Hour": 22.0}, {"Time": 112908.0, "V1": -0.9408, "V2": 1.511, "V3": -3.2995, "V4": 0.8408, "V5": -2.0041, "V6": 1.4432, "V7": 3.5083, "V8": -2.7418, "V9": 0.5316, "V10": -0.68, "V11": -3.1907, "V12": -0.7863, "V13": -1.0564, "V14": 4.0592, "V15": -0.6399, "V16": -1.0425, "V17": -6.9119, "V18": 1.4989, "V19": -0.6074, "V20": -4.0132, "V21": 1.9927, "V22": 1.1603, "V23": -1.5828, "V24": -0.0017, "V25": 1.5533, "V26": 0.6866, "V27": 1.6916, "V28": -1.0308, "Amount": 2.75, "LogAmount": 1.3218, "Hour": 7.0}, {"Time": 72972.0, "V1": -1.1969, "V2": 1.4064, "V3": -3.0403, "V4": -0.5843, "V5": -0.5438, "V6": 2.3144, "V7": 7.9608, "V8": -3.2348, "V9": 0.0164, "V10": 1.0219, "V11": -1.3217, "V12": -1.1694, "V13": -0.5443, "V14": 3.3853, "V15": -1.2941, "V16": 0.2277, "V17": -9.8103, "V18": 1.6008, "V19": -0.6702, "V20": -2.4523, "V21": 3.8392, "V22": 1.0024, "V23": -3.646, "V24": 0.8899, "V25": 0.5918, "V26": -0.6943, "V27": 2.7631, "V28": 0.8633, "Amount": 2.66, "LogAmount": 1.2975, "Hour": 20.0}]}};
+const $ = s => document.querySelector(s), pct = v => (v * 100).toFixed(1) + "%", f3 = v => v.toFixed(3);
+const COLORS = { "Logistic Regression": "#8a94a8", "Random Forest": "#c98a1a", "XGBoost": "var(--accent)" };
+let sel = R.best.model + " | " + R.best.strategy, curveKind = "roc", sortK = "f1", sortDir = -1;
+
+// Summary strip
+$("#strip").innerHTML = [
+  ["Transactions", R.rows.toLocaleString()], ["Fraud cases", R.fraud_count.toLocaleString(), "fraud"],
+  ["Fraud rate", (R.fraud_rate * 100).toFixed(2) + "%", "fraud"], ["Best F1", f3(R.best.f1) + " · " + R.best.model.split(" ")[0]]
+].map(([k, v, c]) => `<div><span class="eyebrow">${k}</span><span class="v ${c || ""}">${v}</span></div>`).join("");
+const synth = R.data_source === "synthetic";
+$("#srcTag").textContent = synth ? "Synthetic data (Kaggle schema)" : "Kaggle ULB dataset";
+if (!synth) $("#srcTag").classList.remove("warn");
+$("#srcNote").textContent = synth
+  ? "These results come from a synthetic dataset with the same schema and fraud rate as the Kaggle ULB credit card dataset. Drop creditcard.csv into data/ and re-run python -m src.train to reproduce on real transactions."
+  : "Results computed on the Kaggle ULB credit card fraud dataset (284,807 European card transactions, September 2013).";
+
+// Table
+function renderTable() {
+  const rows = [...R.results].sort((a, b) => (a[sortK] > b[sortK] ? 1 : a[sortK] < b[sortK] ? -1 : 0) * sortDir);
+  document.querySelectorAll("th").forEach(th => th.dataset.k === sortK ? th.setAttribute("aria-sort", sortDir < 0 ? "descending" : "ascending") : th.removeAttribute("aria-sort"));
+  $("#tbl tbody").innerHTML = rows.map(r => {
+    const key = r.model + " | " + r.strategy, isBest = r.model === R.best.model && r.strategy === R.best.strategy;
+    return `<tr data-key="${key}" tabindex="0" class="${key === sel ? "sel" : ""}"><td class="model">${r.model}${isBest ? '<span class="best">BEST F1</span>' : ""}</td><td>${r.strategy}</td>
+      <td class="num">${f3(r.precision)}</td><td class="num">${f3(r.recall)}</td>
+      <td class="num">${f3(r.f1)}<span class="bar"><i style="width:${r.f1 * 100}%"></i></span></td>
+      <td class="num">${f3(r.roc_auc)}</td><td class="num">${f3(r.pr_auc)}</td><td class="num">${r.fn} / ${r.fn + r.tp}</td></tr>`;
+  }).join("");
+}
+$("#tbl thead").addEventListener("click", e => { const k = e.target.closest("th")?.dataset.k; if (!k) return; sortDir = sortK === k ? -sortDir : -1; sortK = k; renderTable(); });
+$("#tbl thead").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
+const pick = e => { const tr = e.target.closest("tr[data-key]"); if (!tr) return; sel = tr.dataset.key; renderTable(); renderDetail(); };
+$("#tbl tbody").addEventListener("click", pick);
+$("#tbl tbody").addEventListener("keydown", e => { if (e.key === "Enter") pick(e); });
+
+// Curves: all three models for the selected strategy
+function renderCurve() {
+  const strat = sel.split(" | ")[1], W = 520, H = 320, P = { l: 44, r: 12, t: 10, b: 36 };
+  const x = v => P.l + v * (W - P.l - P.r), y = v => H - P.b - v * (H - P.t - P.b);
+  let g = "";
+  for (let t = 0; t <= 1.001; t += 0.25) {
+    g += `<line x1="${x(t)}" x2="${x(t)}" y1="${y(0)}" y2="${y(1)}" stroke="var(--line)"/><line x1="${x(0)}" x2="${x(1)}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>`;
+    g += `<text x="${x(t)}" y="${H - P.b + 16}" text-anchor="middle">${t.toFixed(2)}</text><text x="${P.l - 6}" y="${y(t) + 4}" text-anchor="end">${t.toFixed(2)}</text>`;
+  }
+  const [xl, yl] = curveKind === "roc" ? ["False positive rate", "True positive rate"] : ["Recall", "Precision"];
+  g += `<text x="${(x(0) + x(1)) / 2}" y="${H - 4}" text-anchor="middle">${xl}</text><text transform="translate(11 ${(y(0) + y(1)) / 2}) rotate(-90)" text-anchor="middle">${yl}</text>`;
+  if (curveKind === "roc") g += `<line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="var(--muted)" stroke-dasharray="3 4"/>`;
+  let leg = "";
+  for (const m of Object.keys(COLORS)) {
+    const c = R.curves[m + " | " + strat][curveKind], active = sel.startsWith(m);
+    const d = c.x.map((v, i) => (i ? "L" : "M") + x(v).toFixed(1) + " " + y(c.y[i]).toFixed(1)).join("");
+    g += `<path d="${d}" fill="none" stroke="${COLORS[m]}" stroke-width="${active ? 3 : 1.6}" opacity="${active ? 1 : 0.75}"/>`;
+    const row = R.results.find(r => r.model === m && r.strategy === strat);
+    leg += `<span style="--c:${COLORS[m]}">${m} · ${curveKind === "roc" ? "AUC " + f3(row.roc_auc) : "AP " + f3(row.pr_auc)}</span>`;
+  }
+  $("#curve").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${xl} vs ${yl} for ${strat}">${g}</svg>`;
+  $("#legend").innerHTML = leg;
+  $("#curveTitle").textContent = (curveKind === "roc" ? "ROC curve" : "Precision–recall curve") + " · " + strat;
+}
+for (const [id, k] of [["#bRoc", "roc"], ["#bPr", "pr"]]) $(id).onclick = () => { curveKind = k; $("#bRoc").setAttribute("aria-pressed", k === "roc"); $("#bPr").setAttribute("aria-pressed", k === "pr"); renderCurve(); };
+
+function renderCM() {
+  const [m, s] = sel.split(" | "), r = R.results.find(r => r.model === m && r.strategy === s);
+  $("#cmTitle").textContent = "Confusion matrix · " + m + " + " + s;
+  $("#cm").innerHTML = `<span></span><span class="h">Pred. legit</span><span class="h">Pred. fraud</span>
+    <span class="h">Actual legit</span><div class="cell tn"><b>${r.tn.toLocaleString()}</b>true negative</div><div class="cell fp"><b>${r.fp}</b>false alarm</div>
+    <span class="h">Actual fraud</span><div class="cell fn"><b>${r.fn}</b>missed fraud</div><div class="cell tp"><b>${r.tp}</b>caught</div>`;
+  $("#cmNote").textContent = `Catches ${pct(r.recall)} of fraud; ${pct(r.precision)} of alerts are real fraud.`;
+}
+function renderDetail() { renderCurve(); renderCM(); }
+
+// Feature importance
+const maxI = R.feature_importance[0].importance;
+$("#fi").innerHTML = R.feature_importance.slice(0, 10).map(f => `<div class="fi-row"><span class="num">${f.feature}</span><span class="track"><i style="width:${f.importance / maxI * 100}%"></i></span><span class="num" style="text-align:right">${f3(f.importance)}</span></div>`).join("");
+
+// Insights, computed from the results
+(() => {
+  const by = (m, s) => R.results.find(r => r.model === m && r.strategy === s);
+  const lrw = by("Logistic Regression", "Class weights"), lru = by("Logistic Regression", "Undersampling");
+  const topRecall = [...R.results].sort((a, b) => b.recall - a.recall || b.precision - a.precision)[0];
+  const b = R.best;
+  $("#insights").innerHTML = [
+    `<p><strong>${b.model} + ${b.strategy}</strong> has the best F1 (${f3(b.f1)}): it catches ${b.tp} of ${b.tp + b.fn} fraud cases with ${b.fp} false alarm${b.fp === 1 ? "" : "s"}.</p>`,
+    `<p>Class-weighted logistic regression reaches ${pct(lrw.recall)} recall, but only ${pct(lrw.precision)} of its alerts are fraud. At 0.5 it over-flags, so in practice the threshold would be raised.</p>`,
+    `<p>ROC-AUC is at least ${f3(Math.min(...R.results.map(r => r.roc_auc)))} for every model, yet F1 ranges from ${f3(Math.min(...R.results.map(r => r.f1)))} to ${f3(b.f1)}. On data this imbalanced, ROC-AUC flatters weak models; precision, recall and PR-AUC tell them apart.</p>`,
+    `<p>Highest recall: ${topRecall.model} + ${topRecall.strategy} (${pct(topRecall.recall)}). When a missed fraud costs far more than a false alarm, recall is the metric to optimise.</p>`
+  ].join("");
+})();
+
+// In-browser scorer (class-weighted logistic regression)
+const coefAbs = M.coef.map((c, i) => [i, Math.abs(c)]).filter(([i]) => !["LogAmount", "Time", "Hour"].includes(M.features[i])).sort((a, b) => b[1] - a[1]);
+const shown = [...coefAbs.slice(0, 7).map(([i]) => i), M.features.indexOf("Amount")];
+let cur = {};
+const all = [...M.samples.fraud.map((s, i) => ["Fraud #" + (i + 1), s, 1]), ...M.samples.legit.map((s, i) => ["Legit #" + (i + 1), s, 0])];
+function score() {
+  cur.LogAmount = Math.log1p(cur.Amount);
+  let z = M.intercept;
+  M.features.forEach((f, i) => z += M.coef[i] * (cur[f] - M.mean[i]) / M.scale[i]);
+  const p = 1 / (1 + Math.exp(-z)), hi = p >= 0.5;
+  $("#prob").textContent = (p * 100).toFixed(p < 0.01 || p > 0.99 ? 2 : 1) + "%";
+  $("#needle").style.left = (p * 100) + "%";
+  $("#verdict").className = "verdict " + (hi ? "hi" : "lo");
+  $("#pill").textContent = hi ? "FLAG FOR REVIEW" : "APPROVE";
+}
+function loadSample(idx) {
+  const [, s, label] = all[idx]; cur = { ...s };
+  document.querySelectorAll("#samples .chip").forEach((c, i) => c.setAttribute("aria-pressed", i === idx));
+  $("#sliders").innerHTML = shown.map(i => {
+    const f = M.features[i], isAmt = f === "Amount";
+    const lo = isAmt ? 0 : -8, hi = isAmt ? 2000 : 8, st = isAmt ? 1 : 0.1, v = Math.max(lo, Math.min(hi, cur[f]));
+    cur[f] = v;
+    return `<div class="sl"><label for="s-${f}"><span>${f}${isAmt ? " ($)" : ""}</span><span class="num" id="o-${f}">${v.toFixed(isAmt ? 2 : 2)}</span></label>
+      <input type="range" id="s-${f}" data-f="${f}" min="${lo}" max="${hi}" step="${st}" value="${v}"></div>`;
+  }).join("");
+  $("#actual").textContent = `Loaded a test-set transaction whose true label is ${label ? "fraud" : "legitimate"}.`;
+  score();
+}
+$("#samples").innerHTML = all.map(([n, , l], i) => `<button class="chip ${l ? "f" : ""}" data-i="${i}" aria-pressed="false">${n}</button>`).join("");
+$("#samples").addEventListener("click", e => { const b = e.target.closest("button"); if (b) loadSample(+b.dataset.i); });
+$("#sliders").addEventListener("input", e => { const f = e.target.dataset.f; if (!f) return; cur[f] = +e.target.value; $("#o-" + f).textContent = (+e.target.value).toFixed(2); $("#actual").textContent = "Edited transaction."; score(); });
+
+renderTable(); renderDetail(); loadSample(0);
+</script>
+
+</body>
+</html>

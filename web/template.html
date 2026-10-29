@@ -1,0 +1,304 @@
+<title>Card Fraud Detector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Credit card fraud detection: Logistic Regression, Random Forest and XGBoost compared across SMOTE, class weights and undersampling.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a risk-analyst console — summary strip, comparison ledger, curve + matrix pair, live scorer */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --ink: #121a2b; --muted: #5a6478; --line: #dbe0e8;
+  --accent: #1d5fd1; --accent-soft: #e3ecfb; --fraud: #c62f3b; --fraud-soft: #fbe6e8; --ok: #1f7a4d; --ok-soft: #e1f2e9;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1220; --surface: #151c2e; --ink: #e6eaf2; --muted: #95a0b6; --line: #27304a;
+  --accent: #6f9ef5; --accent-soft: #1b2847; --fraud: #f06b74; --fraud-soft: #3a1c24; --ok: #5cc48f; --ok-soft: #15301f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1220; --surface: #151c2e; --ink: #e6eaf2; --muted: #95a0b6; --line: #27304a;
+  --accent: #6f9ef5; --accent-soft: #1b2847; --fraud: #f06b74; --fraud-soft: #3a1c24; --ok: #5cc48f; --ok-soft: #15301f; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); font-stretch: 82%; letter-spacing: -0.01em; text-wrap: balance; margin: 0 }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; line-height: 1.05 }
+h2 { font-size: 1.35rem; font-weight: 700 }
+p { margin: 0 }
+.eyebrow { font: 500 0.72rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted) }
+.lede { color: var(--muted); max-width: 64ch; margin-top: 12px }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px }
+.tag { font: 500 0.75rem var(--mono); padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface) }
+.tag.warn { border-color: var(--fraud); color: var(--fraud) }
+.num { font-variant-numeric: tabular-nums; font-family: var(--mono) }
+section { display: grid; gap: 16px; min-width: 0 }
+.sec-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap }
+.sec-head p { color: var(--muted); font-size: 0.9rem; max-width: 60ch }
+
+.strip { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+.strip > div { padding: 16px 18px; border-left: 1px solid var(--line); display: grid; gap: 2px; min-width: 0 }
+.strip > div:first-child { border-left: 0 }
+.strip .v { font: 600 1.5rem var(--mono); font-variant-numeric: tabular-nums }
+.strip .v.fraud { color: var(--fraud) }
+@media (max-width: 720px) { .strip { grid-template-columns: 1fr 1fr } .strip > div:nth-child(3) { border-left: 0 } .strip > div:nth-child(n+3) { border-top: 1px solid var(--line) } }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface) }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 0.9rem }
+th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left }
+th { font: 500 0.72rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none }
+th[aria-sort] { color: var(--accent) }
+tbody tr { cursor: pointer }
+tbody tr:hover { background: var(--accent-soft) }
+tbody tr.sel { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft) }
+tr:last-child td { border-bottom: 0 }
+td.model { font-weight: 600 }
+.best { font: 600 0.65rem var(--mono); color: var(--ok); background: var(--ok-soft); padding: 2px 6px; border-radius: 3px; margin-left: 8px; letter-spacing: 0.05em }
+.bar { position: relative; display: inline-block; width: 64px; height: 6px; background: var(--line); border-radius: 3px; margin-left: 8px; vertical-align: middle }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px }
+
+.pair { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px }
+@media (max-width: 860px) { .pair { grid-template-columns: 1fr } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 14px; align-content: start; min-width: 0 }
+.panel h3 { margin: 0; font: 600 0.95rem var(--body) }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden }
+.seg button { font: 500 0.78rem var(--mono); padding: 6px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg) }
+button:focus-visible, select:focus-visible, input:focus-visible, th:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+svg text { fill: var(--muted); font: 11px var(--mono) }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; color: var(--muted) }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c) }
+
+.cm { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; font-size: 0.82rem }
+.cm .h { font: 500 0.7rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; align-self: center }
+.cm .cell { padding: 14px 10px; border-radius: 4px; display: grid; gap: 2px; text-align: center }
+.cm .cell b { font: 600 1.3rem var(--mono); font-variant-numeric: tabular-nums }
+.cell.tp { background: var(--ok-soft); color: var(--ok) } .cell.tn { background: var(--accent-soft); color: var(--accent) }
+.cell.fp, .cell.fn { background: var(--fraud-soft); color: var(--fraud) }
+.note { font-size: 0.82rem; color: var(--muted) }
+
+.fi { display: grid; gap: 8px }
+.fi-row { display: grid; grid-template-columns: 80px 1fr 56px; gap: 10px; align-items: center; font-size: 0.85rem }
+.fi-row .track { height: 10px; background: var(--line); border-radius: 2px; overflow: hidden }
+.fi-row .track i { display: block; height: 100%; background: var(--accent) }
+
+.scorer { display: grid; grid-template-columns: 1fr 300px; gap: 20px }
+@media (max-width: 860px) { .scorer { grid-template-columns: 1fr } }
+.sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px }
+@media (max-width: 560px) { .sliders { grid-template-columns: 1fr } }
+.sl { display: grid; gap: 4px }
+.sl label { display: flex; justify-content: space-between; font-size: 0.85rem }
+.sl input { width: 100%; accent-color: var(--accent) }
+.samples { display: flex; flex-wrap: wrap; gap: 8px }
+.chip { font: 500 0.78rem var(--mono); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer }
+.chip.f { border-color: var(--fraud); color: var(--fraud) }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink) }
+.verdict { display: grid; gap: 10px; align-content: start; padding: 20px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface) }
+.verdict .p { font: 600 3rem/1 var(--mono); font-variant-numeric: tabular-nums }
+.verdict.hi .p { color: var(--fraud) } .verdict.lo .p { color: var(--ok) }
+.pill { justify-self: start; font: 600 0.75rem var(--mono); padding: 4px 10px; border-radius: 99px; letter-spacing: 0.05em }
+.hi .pill { background: var(--fraud-soft); color: var(--fraud) } .lo .pill { background: var(--ok-soft); color: var(--ok) }
+.meter { height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--ok), var(--line) 50%, var(--fraud)); position: relative }
+.meter i { position: absolute; top: -4px; width: 3px; height: 16px; background: var(--ink); transform: translateX(-1px); transition: left .25s }
+@media (prefers-reduced-motion: reduce) { .meter i { transition: none } }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 20px; display: grid; gap: 6px }
+footer a { color: var(--accent) }
+code { font-family: var(--mono); font-size: 0.88em }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Machine learning · Imbalanced classification</p>
+    <h1>Credit Card Fraud Detection</h1>
+    <p class="lede">Nine models trained to flag fraudulent card transactions: Logistic Regression, Random Forest and XGBoost, each paired with class weights, SMOTE oversampling or random undersampling. Ranked on precision, recall, F1 and ROC-AUC, because accuracy is meaningless when fewer than 0.2% of transactions are fraud.</p>
+    <div class="tags"><span class="tag">Python</span><span class="tag">Pandas</span><span class="tag">Scikit-learn</span><span class="tag">imbalanced-learn</span><span class="tag">XGBoost</span><span class="tag warn" id="srcTag"></span></div>
+  </header>
+
+  <section aria-label="Dataset summary"><div class="strip" id="strip"></div></section>
+
+  <section>
+    <div class="sec-head"><div><p class="eyebrow">Hold-out test set · threshold 0.5</p><h2>Model comparison</h2></div>
+      <p>Click a column to sort, or a row to inspect its curves and confusion matrix below.</p></div>
+    <div class="tablewrap"><table id="tbl"><thead><tr>
+      <th data-k="model" tabindex="0">Model</th><th data-k="strategy" tabindex="0">Imbalance strategy</th>
+      <th data-k="precision" tabindex="0">Precision</th><th data-k="recall" tabindex="0">Recall</th>
+      <th data-k="f1" tabindex="0">F1</th><th data-k="roc_auc" tabindex="0">ROC-AUC</th><th data-k="pr_auc" tabindex="0">PR-AUC</th>
+      <th data-k="fn" tabindex="0">Missed fraud</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="pair">
+    <div class="panel">
+      <div class="sec-head"><h3 id="curveTitle">Curves</h3>
+        <div class="seg" role="group" aria-label="Curve type"><button id="bRoc" aria-pressed="true">ROC</button><button id="bPr" aria-pressed="false">Precision–Recall</button></div></div>
+      <div id="curve"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="panel">
+      <h3 id="cmTitle">Confusion matrix</h3>
+      <div class="cm" id="cm"></div>
+      <p class="note" id="cmNote"></p>
+    </div>
+  </section>
+
+  <section class="pair">
+    <div class="panel">
+      <h3>Top features (XGBoost, class weights)</h3>
+      <div class="fi" id="fi"></div>
+      <p class="note">V1–V28 are PCA components (the original card features are anonymised), so importance points to latent patterns rather than named fields.</p>
+    </div>
+    <div class="panel">
+      <h3>What the comparison shows</h3>
+      <div id="insights" class="note" style="display:grid;gap:10px;color:var(--ink);font-size:0.9rem"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div><p class="eyebrow">Runs in your browser</p><h2>Score a transaction</h2></div>
+      <p>Load a test-set transaction, then move the strongest features to see how the class-weighted logistic regression reacts. Features not shown keep the sample's values.</p></div>
+    <div class="scorer">
+      <div class="panel">
+        <div class="samples" id="samples" role="group" aria-label="Sample transactions"></div>
+        <div class="sliders" id="sliders"></div>
+      </div>
+      <div class="verdict" id="verdict" aria-live="polite">
+        <p class="eyebrow">Fraud probability</p>
+        <p class="p" id="prob">–</p>
+        <div class="meter"><i id="needle"></i></div>
+        <span class="pill" id="pill"></span>
+        <p class="note" id="actual"></p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Pipeline: clean → engineer <code>LogAmount</code> and <code>Hour</code> → stratified 75/25 split → scale → resample (training data only) → fit → evaluate. Source code and full results are in the GitHub repository.</p>
+    <p id="srcNote"></p>
+  </footer>
+</div>
+
+<script>
+const R = /*RESULTS*/null, M = /*MODEL*/null;
+const $ = s => document.querySelector(s), pct = v => (v * 100).toFixed(1) + "%", f3 = v => v.toFixed(3);
+const COLORS = { "Logistic Regression": "#8a94a8", "Random Forest": "#c98a1a", "XGBoost": "var(--accent)" };
+let sel = R.best.model + " | " + R.best.strategy, curveKind = "roc", sortK = "f1", sortDir = -1;
+
+// Summary strip
+$("#strip").innerHTML = [
+  ["Transactions", R.rows.toLocaleString()], ["Fraud cases", R.fraud_count.toLocaleString(), "fraud"],
+  ["Fraud rate", (R.fraud_rate * 100).toFixed(2) + "%", "fraud"], ["Best F1", f3(R.best.f1) + " · " + R.best.model.split(" ")[0]]
+].map(([k, v, c]) => `<div><span class="eyebrow">${k}</span><span class="v ${c || ""}">${v}</span></div>`).join("");
+const synth = R.data_source === "synthetic";
+$("#srcTag").textContent = synth ? "Synthetic data (Kaggle schema)" : "Kaggle ULB dataset";
+if (!synth) $("#srcTag").classList.remove("warn");
+$("#srcNote").textContent = synth
+  ? "These results come from a synthetic dataset with the same schema and fraud rate as the Kaggle ULB credit card dataset. Drop creditcard.csv into data/ and re-run python -m src.train to reproduce on real transactions."
+  : "Results computed on the Kaggle ULB credit card fraud dataset (284,807 European card transactions, September 2013).";
+
+// Table
+function renderTable() {
+  const rows = [...R.results].sort((a, b) => (a[sortK] > b[sortK] ? 1 : a[sortK] < b[sortK] ? -1 : 0) * sortDir);
+  document.querySelectorAll("th").forEach(th => th.dataset.k === sortK ? th.setAttribute("aria-sort", sortDir < 0 ? "descending" : "ascending") : th.removeAttribute("aria-sort"));
+  $("#tbl tbody").innerHTML = rows.map(r => {
+    const key = r.model + " | " + r.strategy, isBest = r.model === R.best.model && r.strategy === R.best.strategy;
+    return `<tr data-key="${key}" tabindex="0" class="${key === sel ? "sel" : ""}"><td class="model">${r.model}${isBest ? '<span class="best">BEST F1</span>' : ""}</td><td>${r.strategy}</td>
+      <td class="num">${f3(r.precision)}</td><td class="num">${f3(r.recall)}</td>
+      <td class="num">${f3(r.f1)}<span class="bar"><i style="width:${r.f1 * 100}%"></i></span></td>
+      <td class="num">${f3(r.roc_auc)}</td><td class="num">${f3(r.pr_auc)}</td><td class="num">${r.fn} / ${r.fn + r.tp}</td></tr>`;
+  }).join("");
+}
+$("#tbl thead").addEventListener("click", e => { const k = e.target.closest("th")?.dataset.k; if (!k) return; sortDir = sortK === k ? -sortDir : -1; sortK = k; renderTable(); });
+$("#tbl thead").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
+const pick = e => { const tr = e.target.closest("tr[data-key]"); if (!tr) return; sel = tr.dataset.key; renderTable(); renderDetail(); };
+$("#tbl tbody").addEventListener("click", pick);
+$("#tbl tbody").addEventListener("keydown", e => { if (e.key === "Enter") pick(e); });
+
+// Curves: all three models for the selected strategy
+function renderCurve() {
+  const strat = sel.split(" | ")[1], W = 520, H = 320, P = { l: 44, r: 12, t: 10, b: 36 };
+  const x = v => P.l + v * (W - P.l - P.r), y = v => H - P.b - v * (H - P.t - P.b);
+  let g = "";
+  for (let t = 0; t <= 1.001; t += 0.25) {
+    g += `<line x1="${x(t)}" x2="${x(t)}" y1="${y(0)}" y2="${y(1)}" stroke="var(--line)"/><line x1="${x(0)}" x2="${x(1)}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>`;
+    g += `<text x="${x(t)}" y="${H - P.b + 16}" text-anchor="middle">${t.toFixed(2)}</text><text x="${P.l - 6}" y="${y(t) + 4}" text-anchor="end">${t.toFixed(2)}</text>`;
+  }
+  const [xl, yl] = curveKind === "roc" ? ["False positive rate", "True positive rate"] : ["Recall", "Precision"];
+  g += `<text x="${(x(0) + x(1)) / 2}" y="${H - 4}" text-anchor="middle">${xl}</text><text transform="translate(11 ${(y(0) + y(1)) / 2}) rotate(-90)" text-anchor="middle">${yl}</text>`;
+  if (curveKind === "roc") g += `<line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="var(--muted)" stroke-dasharray="3 4"/>`;
+  let leg = "";
+  for (const m of Object.keys(COLORS)) {
+    const c = R.curves[m + " | " + strat][curveKind], active = sel.startsWith(m);
+    const d = c.x.map((v, i) => (i ? "L" : "M") + x(v).toFixed(1) + " " + y(c.y[i]).toFixed(1)).join("");
+    g += `<path d="${d}" fill="none" stroke="${COLORS[m]}" stroke-width="${active ? 3 : 1.6}" opacity="${active ? 1 : 0.75}"/>`;
+    const row = R.results.find(r => r.model === m && r.strategy === strat);
+    leg += `<span style="--c:${COLORS[m]}">${m} · ${curveKind === "roc" ? "AUC " + f3(row.roc_auc) : "AP " + f3(row.pr_auc)}</span>`;
+  }
+  $("#curve").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${xl} vs ${yl} for ${strat}">${g}</svg>`;
+  $("#legend").innerHTML = leg;
+  $("#curveTitle").textContent = (curveKind === "roc" ? "ROC curve" : "Precision–recall curve") + " · " + strat;
+}
+for (const [id, k] of [["#bRoc", "roc"], ["#bPr", "pr"]]) $(id).onclick = () => { curveKind = k; $("#bRoc").setAttribute("aria-pressed", k === "roc"); $("#bPr").setAttribute("aria-pressed", k === "pr"); renderCurve(); };
+
+function renderCM() {
+  const [m, s] = sel.split(" | "), r = R.results.find(r => r.model === m && r.strategy === s);
+  $("#cmTitle").textContent = "Confusion matrix · " + m + " + " + s;
+  $("#cm").innerHTML = `<span></span><span class="h">Pred. legit</span><span class="h">Pred. fraud</span>
+    <span class="h">Actual legit</span><div class="cell tn"><b>${r.tn.toLocaleString()}</b>true negative</div><div class="cell fp"><b>${r.fp}</b>false alarm</div>
+    <span class="h">Actual fraud</span><div class="cell fn"><b>${r.fn}</b>missed fraud</div><div class="cell tp"><b>${r.tp}</b>caught</div>`;
+  $("#cmNote").textContent = `Catches ${pct(r.recall)} of fraud; ${pct(r.precision)} of alerts are real fraud.`;
+}
+function renderDetail() { renderCurve(); renderCM(); }
+
+// Feature importance
+const maxI = R.feature_importance[0].importance;
+$("#fi").innerHTML = R.feature_importance.slice(0, 10).map(f => `<div class="fi-row"><span class="num">${f.feature}</span><span class="track"><i style="width:${f.importance / maxI * 100}%"></i></span><span class="num" style="text-align:right">${f3(f.importance)}</span></div>`).join("");
+
+// Insights, computed from the results
+(() => {
+  const by = (m, s) => R.results.find(r => r.model === m && r.strategy === s);
+  const lrw = by("Logistic Regression", "Class weights"), lru = by("Logistic Regression", "Undersampling");
+  const topRecall = [...R.results].sort((a, b) => b.recall - a.recall || b.precision - a.precision)[0];
+  const b = R.best;
+  $("#insights").innerHTML = [
+    `<p><strong>${b.model} + ${b.strategy}</strong> has the best F1 (${f3(b.f1)}): it catches ${b.tp} of ${b.tp + b.fn} fraud cases with ${b.fp} false alarm${b.fp === 1 ? "" : "s"}.</p>`,
+    `<p>Class-weighted logistic regression reaches ${pct(lrw.recall)} recall, but only ${pct(lrw.precision)} of its alerts are fraud. At 0.5 it over-flags, so in practice the threshold would be raised.</p>`,
+    `<p>ROC-AUC is at least ${f3(Math.min(...R.results.map(r => r.roc_auc)))} for every model, yet F1 ranges from ${f3(Math.min(...R.results.map(r => r.f1)))} to ${f3(b.f1)}. On data this imbalanced, ROC-AUC flatters weak models; precision, recall and PR-AUC tell them apart.</p>`,
+    `<p>Highest recall: ${topRecall.model} + ${topRecall.strategy} (${pct(topRecall.recall)}). When a missed fraud costs far more than a false alarm, recall is the metric to optimise.</p>`
+  ].join("");
+})();
+
+// In-browser scorer (class-weighted logistic regression)
+const coefAbs = M.coef.map((c, i) => [i, Math.abs(c)]).filter(([i]) => !["LogAmount", "Time", "Hour"].includes(M.features[i])).sort((a, b) => b[1] - a[1]);
+const shown = [...coefAbs.slice(0, 7).map(([i]) => i), M.features.indexOf("Amount")];
+let cur = {};
+const all = [...M.samples.fraud.map((s, i) => ["Fraud #" + (i + 1), s, 1]), ...M.samples.legit.map((s, i) => ["Legit #" + (i + 1), s, 0])];
+function score() {
+  cur.LogAmount = Math.log1p(cur.Amount);
+  let z = M.intercept;
+  M.features.forEach((f, i) => z += M.coef[i] * (cur[f] - M.mean[i]) / M.scale[i]);
+  const p = 1 / (1 + Math.exp(-z)), hi = p >= 0.5;
+  $("#prob").textContent = (p * 100).toFixed(p < 0.01 || p > 0.99 ? 2 : 1) + "%";
+  $("#needle").style.left = (p * 100) + "%";
+  $("#verdict").className = "verdict " + (hi ? "hi" : "lo");
+  $("#pill").textContent = hi ? "FLAG FOR REVIEW" : "APPROVE";
+}
+function loadSample(idx) {
+  const [, s, label] = all[idx]; cur = { ...s };
+  document.querySelectorAll("#samples .chip").forEach((c, i) => c.setAttribute("aria-pressed", i === idx));
+  $("#sliders").innerHTML = shown.map(i => {
+    const f = M.features[i], isAmt = f === "Amount";
+    const lo = isAmt ? 0 : -8, hi = isAmt ? 2000 : 8, st = isAmt ? 1 : 0.1, v = Math.max(lo, Math.min(hi, cur[f]));
+    cur[f] = v;
+    return `<div class="sl"><label for="s-${f}"><span>${f}${isAmt ? " ($)" : ""}</span><span class="num" id="o-${f}">${v.toFixed(isAmt ? 2 : 2)}</span></label>
+      <input type="range" id="s-${f}" data-f="${f}" min="${lo}" max="${hi}" step="${st}" value="${v}"></div>`;
+  }).join("");
+  $("#actual").textContent = `Loaded a test-set transaction whose true label is ${label ? "fraud" : "legitimate"}.`;
+  score();
+}
+$("#samples").innerHTML = all.map(([n, , l], i) => `<button class="chip ${l ? "f" : ""}" data-i="${i}" aria-pressed="false">${n}</button>`).join("");
+$("#samples").addEventListener("click", e => { const b = e.target.closest("button"); if (b) loadSample(+b.dataset.i); });
+$("#sliders").addEventListener("input", e => { const f = e.target.dataset.f; if (!f) return; cur[f] = +e.target.value; $("#o-" + f).textContent = (+e.target.value).toFixed(2); $("#actual").textContent = "Edited transaction."; score(); });
+
+renderTable(); renderDetail(); loadSample(0);
+</script>

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+data/creditcard.csv
+models/*.joblib
+web/artifact.html
