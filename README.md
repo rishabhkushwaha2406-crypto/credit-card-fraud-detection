@@ -34,15 +34,18 @@ Key takeaway: every model scores ROC-AUC > 0.94, yet F1 ranges from 0.17 to 0.96
 
 > **Data note:** these numbers come from a synthetic dataset generated with the same schema (`Time`, `V1`–`V28`, `Amount`, `Class`) and fraud rate as the [Kaggle ULB Credit Card Fraud dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud). To run on the real data, download `creditcard.csv` into `data/` and re-run the pipeline — the code picks it up automatically.
 
-## Dashboard
+## Website
 
-A single static page (`web/index.html`, no backend) with:
+A single static page (`web/index.html`, no backend, no build step) designed as a product site:
 
-- **Model comparison**: heatmap of 9 models x imbalance strategies (switch between F1, precision, recall, ROC-AUC, PR-AUC) and a sortable metrics table
-- **Threshold tuner**: slide the decision threshold and watch precision, recall, F1 and the confusion matrix update; presets for best F1, 95%+ recall and fewest false alarms; precision-recall and log-scale ROC curves
-- **Cost calculator**: set the analyst review cost and chargeback fee; every model's cost-minimising threshold is found automatically, using each missed fraud's real amount
-- **Transaction scorer**: load real test-set transactions (fraud, legit or tricky false-alarm cases), edit the strongest features and see a per-feature explanation of the score
-- Light/dark theme, mobile layout, keyboard accessible
+- **Live replay hero**: real held-out transactions stream past and are scored in the browser, with a holographic card that flags each decision
+- **The problem**: a 1,000-dot visual of how rare fraud is, and why accuracy is the wrong metric
+- **The method**: the eight-step pipeline from raw data to evaluation
+- **Model leaderboard**: all 9 models ranked by F1, recall, precision, PR-AUC or ROC-AUC
+- **Threshold lab**: drag the decision threshold and watch precision, recall, F1, the confusion matrix and the PR/ROC curves update; presets for best F1, 95%+ recall and fewest false alarms
+- **Business case**: set review and chargeback costs; each model's cost-minimising threshold is found automatically, using the real amounts of missed fraud
+- **Try it**: load real fraud, legitimate or tricky transactions, drag the most influential features, and see a risk gauge plus a per-feature explanation
+- Responsive down to 320px, keyboard accessible, respects reduced-motion settings
 
 ## Run it
 
