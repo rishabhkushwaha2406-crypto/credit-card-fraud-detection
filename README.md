@@ -2,7 +2,7 @@
 
 **Python · Pandas · Scikit-learn · imbalanced-learn · XGBoost**
 
-A machine-learning pipeline that flags potentially fraudulent credit-card transactions, plus a live dashboard that compares the models and scores transactions in the browser.
+A machine-learning pipeline that flags potentially fraudulent credit-card transactions, plus an interactive dashboard to compare the models, tune the decision threshold, estimate fraud costs and score transactions in the browser.
 
 **Live demo:** _add your Vercel or Netlify URL here_
 
@@ -34,11 +34,21 @@ Key takeaway: every model scores ROC-AUC > 0.94, yet F1 ranges from 0.17 to 0.96
 
 > **Data note:** these numbers come from a synthetic dataset generated with the same schema (`Time`, `V1`–`V28`, `Amount`, `Class`) and fraud rate as the [Kaggle ULB Credit Card Fraud dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud). To run on the real data, download `creditcard.csv` into `data/` and re-run the pipeline — the code picks it up automatically.
 
+## Dashboard
+
+A single static page (`web/index.html`, no backend) with:
+
+- **Model comparison**: heatmap of 9 models x imbalance strategies (switch between F1, precision, recall, ROC-AUC, PR-AUC) and a sortable metrics table
+- **Threshold tuner**: slide the decision threshold and watch precision, recall, F1 and the confusion matrix update; presets for best F1, 95%+ recall and fewest false alarms; precision-recall and log-scale ROC curves
+- **Cost calculator**: set the analyst review cost and chargeback fee; every model's cost-minimising threshold is found automatically, using each missed fraud's real amount
+- **Transaction scorer**: load real test-set transactions (fraud, legit or tricky false-alarm cases), edit the strongest features and see a per-feature explanation of the score
+- Light/dark theme, mobile layout, keyboard accessible
+
 ## Run it
 
 ```bash
 pip install -r requirements.txt
-python -m src.train      # trains 9 pipelines, saves models/ and reports/results.json
+python -m src.train      # trains 9 pipelines, saves models/, reports/ and web/data/dashboard.json
 python web/build.py      # rebuilds the dashboard at web/index.html
 ```
 
@@ -46,15 +56,16 @@ python web/build.py      # rebuilds the dashboard at web/index.html
 
 ```
 src/data.py          loading, cleaning, feature engineering, synthetic fallback
-src/train.py         imbalance strategies, model training, evaluation, exports
-reports/results.json full metrics, ROC/PR curves, feature importance
+src/train.py         imbalance strategies, model training, evaluation
+src/export.py        threshold sweeps, curves and scorer export for the dashboard
+reports/results.json full metrics and feature importance
 web/template.html    dashboard source
 web/build.py         inlines results into web/index.html
-web/index.html       static site deployed to GitHub Pages
+web/index.html       static site (Vercel / Netlify / GitHub Pages)
 .github/workflows/   GitHub Pages deployment
 ```
 
-The dashboard's transaction scorer runs the class-weighted logistic regression entirely in JavaScript using the exported scaler and coefficients — no backend needed.
+The transaction scorer runs the undersampled logistic regression entirely in JavaScript using the exported scaler and coefficients; its probabilities match scikit-learn to 4 decimal places.
 
 ## Deploy
 
